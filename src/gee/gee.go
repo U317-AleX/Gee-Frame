@@ -2,7 +2,9 @@ package gee
 
 import (
 	"net/http"
+	"path"
 	"strings"
+	"text/template"
 )
 
 // HandlerFunc defines the request handler used by gee
@@ -14,6 +16,8 @@ type Engine struct {
 				// engine and group share the funcs about route
 	router *router
 	groups []*RouterGroup
+	htmlTemplates *template.Template // all the templates in memory
+	funcMap template.FuncMap //  render function
 }
 
 // New is the constructor of gee.Engine
@@ -56,6 +60,7 @@ func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	c := newContext(w, req)
+	c.engine = engine
 	c.handlers = middlewares
 	engine.router.handle(c)
 }
@@ -85,4 +90,38 @@ func (group *RouterGroup) Group(prefix string) *RouterGroup {
 // Use is defined to add middlewares to the group
 func (group *RouterGroup) Use(middleware ...HandlerFunc) {
 	group.middlewares = append(group.middlewares, middleware...)
+}
+
+// create static handler
+func (group *RouterGroup) createStaticHandler(relativePath string, fs http.FileSystem) HandlerFunc {
+	absolutePath := path.Join(group.prefix, relativePath)
+	fileServer := http.StripPrefix(absolutePath, http.FileServer(fs))
+	return func(c *Context) {
+		file := c.Param("filepath")
+
+		if _, err := fs.Open(file); err != nil {
+			c.Status(http.StatusNotFound)
+			return
+		}
+
+		fileServer.ServeHTTP(c.Writer, c.Req)
+	}
+}
+
+// Serve static files
+func (group *RouterGroup) Static(relativePath string, root string) {
+	handler := group.createStaticHandler(relativePath, http.Dir(root))
+	urlPattern := path.Join(relativePath, "/*filepath")
+	// Register GET handlers
+	group.GET(urlPattern, handler)
+}
+
+// Set render function defined by user
+func (engine *Engine) SetFuncMap(funcMap template.FuncMap) {
+	engine.funcMap = funcMap
+}
+
+// Load templates in memory
+func (engine *Engine) LoadHTMLGlob(pattern string) {
+	engine.htmlTemplates = template.Must(template.New("").Funcs(engine.funcMap).ParseGlob(pattern))
 }
