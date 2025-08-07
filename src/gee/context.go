@@ -23,6 +23,8 @@ type Context struct {
 	handlers []HandlerFunc
 	// current middleware
 	index int
+	// engine pointer for get html templates
+	engine *Engine
 }
 
 func newContext(w http.ResponseWriter, req *http.Request) *Context {
@@ -90,10 +92,14 @@ func (c *Context) Data(code int, data []byte) {
 }
 
 // Write html into http body
-func (c *Context) HTML(code int, html string) {
+// name for template
+// data for template change
+func (c *Context) HTML(code int, name string, data interface{}) {
 	c.SetHeader("Content-Type", "text/html")
 	c.Status(code)
-	c.Writer.Write([]byte(html))
+		if err := c.engine.htmlTemplates.ExecuteTemplate(c.Writer, name, data); err != nil {
+		c.Fail(500, err.Error())
+	}
 }
 
 // Get a route param
