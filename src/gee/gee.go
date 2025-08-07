@@ -2,6 +2,7 @@ package gee
 
 import (
 	"net/http"
+	"strings"
 )
 
 // HandlerFunc defines the request handler used by gee
@@ -23,6 +24,7 @@ func New() *Engine {
 	return engine
 }
 
+// You could add a handler(not middleware) directly by group and use its prefix
 func (group *RouterGroup) addRoute(method string, comp string, handler HandlerFunc) {
 	pattern := group.prefix + comp
 	group.engine.router.addRoute(method, pattern, handler)
@@ -43,13 +45,23 @@ func (engine *Engine) Run(addr string) (err error) {
 	return http.ListenAndServe(addr, engine)
 }
 
-// Call handler to handle the request
+// Find matched middleware adding them to c.handlers
+// and boots the whole handlers chain
 func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	var middlewares []HandlerFunc
+	for _,  group := range engine.groups {
+		if strings.HasPrefix(req.URL.Path, group.prefix) {
+			middlewares = append(middlewares, group.middlewares...)
+		}
+	}
+
 	c := newContext(w, req)
+	c.handlers = middlewares
 	engine.router.handle(c)
 }
 
-// RouterGroup is the set of route pathes who has the same prefix and effected by the same middlewares
+// RouterGroup is the set of route paths who has the same prefix 
+// and effected by the same middlewares
 type RouterGroup struct {
 	prefix string
 	middlewares []HandlerFunc
@@ -68,4 +80,9 @@ func (group *RouterGroup) Group(prefix string) *RouterGroup {
 	}
 	engine.groups = append(engine.groups, newGroup)
 	return newGroup
+}
+
+// Use is defined to add middlewares to the group
+func (group *RouterGroup) Use(middleware ...HandlerFunc) {
+	group.middlewares = append(group.middlewares, middleware...)
 }

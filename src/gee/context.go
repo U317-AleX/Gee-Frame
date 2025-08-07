@@ -19,6 +19,10 @@ type Context struct {
 	Params map[string]string
 	// response info
 	StatusCode int
+	// middleware
+	handlers []HandlerFunc
+	// current middleware
+	index int
 }
 
 func newContext(w http.ResponseWriter, req *http.Request) *Context {
@@ -27,10 +31,21 @@ func newContext(w http.ResponseWriter, req *http.Request) *Context {
 		Req:    req,
 		Path:   req.URL.Path,
 		Method: req.Method,
+		index:  -1,
 	}
 }
 
-// Get parameters from PostFrom
+// Switch to the next handler(middleware)
+// it could be called by middleware in advance
+func (c *Context) Next() {
+	c.index++
+	s := len(c.handlers)
+	for ; c.index < s; c.index++ {
+		c.handlers[c.index](c)
+	}
+}
+
+// Get parameters from PostForm
 func (c *Context) PostForm(key string) string {
 	return c.Req.FormValue(key)
 }
@@ -85,4 +100,9 @@ func (c *Context) HTML(code int, html string) {
 func (c *Context) Param(key string) string {
 	value, _ := c.Params[key]
 	return value
+}
+
+func (c *Context) Fail(code int, err string) {
+	c.index = len(c.handlers)
+	c.JSON(code, H{"message": err})
 }
