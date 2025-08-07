@@ -8,6 +8,7 @@ import (
 
 type H map[string]interface{}
 
+// Context is the package for handler, including everything the handler needs
 type Context struct {
 	// origin objects
 	Writer http.ResponseWriter
