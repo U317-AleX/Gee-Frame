@@ -20,6 +20,13 @@ type Engine struct {
 	funcMap template.FuncMap //  render function
 }
 
+// Default use Logger() & Recovery middlewares
+func Default() *Engine {
+	engine := New()
+	engine.Use(Logger(), Recovery())
+	return engine
+}
+
 // New is the constructor of gee.Engine
 func New() *Engine {
 	engine := &Engine{router: newRouter()}
